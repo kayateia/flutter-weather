@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:location/location.dart';
+import 'package:geocoder/geocoder.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert' as convert;
 
 void main() => runApp(MyApp());
 
@@ -44,26 +47,82 @@ class MyHomePage extends StatefulWidget {
   _MyHomePageState createState() => _MyHomePageState();
 }
 
+class LocationInfo {
+  final double latitude;
+  final double longitude;
+  final String cityName;
+
+  const LocationInfo(this.latitude, this.longitude, this.cityName);
+}
+
+// Holds a single observation returned from the NWS API. This could be
+// expanded to hold more data later, but for now we're only interested
+// in barometric pressure in Pa and the weather description.
+class Observation {
+  final DateTime timestamp;
+  final double pressure;
+  final String description;
+
+  const Observation(this.timestamp, this.pressure, this.description);
+}
+
 class _MyHomePageState extends State<MyHomePage> {
-  Map<String, double> userLocation;
+  LocationInfo _userLocation;
+  List<Observation> _observations;
   final _location = Location();
 
-  void _incrementCounter() {
-    _getLocation().then((value) {
+  void _requestUpdate() {
+    // assert(_userLocation == null);
+    _getLocation().then((LocationInfo value) {
       setState(() {
         // This call to setState tells the Flutter framework that something has
         // changed in this State, which causes it to rerun the build method below
         // so that the display can reflect the updated values. If we changed
         // _counter without calling setState(), then the build method would not be
         // called again, and so nothing would appear to happen.
-        userLocation = value;
+        _userLocation = value;
+      });
+
+      print("Getting station from ${_userLocation.latitude}. ${_userLocation.longitude}");
+      _getStationUrl(_userLocation).then((String url) {
+        print("Getting observations from $url");
+        _getPressureHistory(url).then((List<Observation> observations) {
+          if (observations != null) {
+            print("${observations.length} Observations gotten");
+          } else {
+            print("obs null");
+          }
+          setState(() {
+            _observations = observations;
+          });
+        });
       });
     });
   }
 
+  List<Widget> _buildProgress(String prompt) {
+    return <Widget>[
+      Text(prompt),
+      CircularProgressIndicator()
+    ];
+  }
+
+  List<Widget> _buildContent(BuildContext context) {
+    if (_userLocation == null) {
+      return _buildProgress("Finding you...");
+    } else if (_observations == null) {
+      return _buildProgress("Getting data...");
+    } else {
+      return <Widget>[
+        Text(_userLocation.cityName, style: Theme.of(context).textTheme.display1),
+        Text("Stuff goes here"),
+      ];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    _incrementCounter();
+    // _requestUpdate();
 
     // This method is rerun every time setState is called, for instance as done
     // by the _incrementCounter method above.
@@ -96,37 +155,146 @@ class _MyHomePageState extends State<MyHomePage> {
           // axis because Columns are vertical (the cross axis would be
           // horizontal).
           mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'Location:',
-            ),
-            userLocation == null
-                ? CircularProgressIndicator()
-                : Text(
-                  userLocation['latitude'].toString() +
-                      " " +
-                      userLocation['longitude'].toString(),
-                  style: Theme.of(context).textTheme.display1,
-                ),
-          ],
+          children: _buildContent(context),
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
+        onPressed: _requestUpdate,
         tooltip: 'Get Location',
-        child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+        child: Icon(Icons.update),
+      ),
     );
   }
 
-  Future<Map<String, double>> _getLocation() async {
+  Future<LocationInfo> _getLocation() async {
     var currentLocation = <String, double> { };
+    var cityName = "";
     try {
       currentLocation = await _location.getLocation();
+
+      final coordinates = Coordinates(currentLocation["latitude"], currentLocation["longitude"]);
+      final address = await Geocoder.local.findAddressesFromCoordinates(coordinates);
+      final first = address.first;
+      cityName = "${first.locality} ${first.postalCode}";
     } catch (e) {
       currentLocation = null;
     }
 
-    return currentLocation;
+    if (currentLocation == null) {
+      return null;
+    } else {
+      return LocationInfo(
+        currentLocation["latitude"],
+        currentLocation["longitude"],
+        cityName
+      );
+    }
+  }
+
+  final _headers = {
+    // Ask for data in a JSON form.
+    "Accept": "application/geo+json",
+
+    // The NWS requests this header as a condition of using their APIs.
+    "User-Agent": "Flutter test app 'pressure': https://github.com/kayateia/",
+  };
+
+  /*
+    The relevant part of the JSON that this returns is in this structure:
+
+    {
+      "observationStations": [
+        "url",
+        "url",
+        ...
+      ]
+    }
+
+    Observation stations seem to be sorted by distance from the specified point.
+
+    We'll just grab the first one. It's possible that the list may be empty for
+    a given GPS coordinate (or even a bad GPS coordinate), but for the sake of
+    simplicity in this learning app, we'll just assume there's at least one.
+   */
+  Future<String> _getStationUrl(LocationInfo location) async {
+    final response = await http.get(
+      "https://api.weather.gov/points/${location.latitude}%2C${location.longitude}/stations",
+      headers: _headers
+    );
+
+    if (response.statusCode == 200) {
+      final json = convert.jsonDecode(response.body);
+      return json["observationStations"][0];
+    } else {
+      return null;
+    }
+  }
+
+  /*
+    The relevant part of the JSON that this returns is in this structure:
+
+    {
+      "features": [
+        {
+          "properties": {
+            "timestamp": "<timestamp in ISO 8601>",
+            "textDescription": "Overcast With a Chance of Brimstone",
+            "barometricPressure": {
+              "value": 12345,
+              "unitCode": "unit:Pa"
+            }
+          }
+        }
+      ]
+    }
+
+    There is a lot more there, but we're not taking it for this simple app.
+   */
+  Future<List<Observation>> _getPressureHistory(String stationUrl) async {
+    // In practice, the resolution of data we will get back is one hour. So we have to
+    // request a few hours in order to get much of anything.
+    final now = DateTime.now();
+    final requestLimit = now.subtract(Duration(hours: 4));
+
+    // NWS doesn't allow us to pass milliseconds.
+    final requestLimitString = requestLimit
+        .toUtc()
+        .toIso8601String()
+        .substring(0, 19)
+        + "Z";
+
+    print("$stationUrl/observations?start=$requestLimitString");
+    final response = await http.get(
+      "$stationUrl/observations?start=$requestLimitString",
+        headers: _headers
+    );
+
+    if (response.statusCode == 200) {
+      final json = convert.jsonDecode(response.body);
+      final features = json["features"];
+
+      // Ideally, we would check properties["barometricPressure"]["unitCode"] to
+      // verify that it's "unit:Pa", but since this is a simple learning app,
+      // I'm skipping that check here.
+      final convertedFeatures = features.map<Observation>((feature) {
+        final properties = feature["properties"];
+        final timestamp = DateTime.parse(properties["timestamp"]);
+        return Observation(
+          timestamp,
+          (properties["barometricPressure"]["value"] as int).toDouble(),
+          properties["textDescription"]
+        );
+      }).toList();
+
+      convertedFeatures.sort(
+        (Observation obs1, Observation obs2) => obs1.timestamp.difference(obs2.timestamp).inSeconds
+      );
+
+      return convertedFeatures;
+    } else {
+      print(response.statusCode);
+      print(response.body);
+      return null;
+    }
   }
 }
