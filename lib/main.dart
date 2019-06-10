@@ -3,6 +3,7 @@ import 'package:location/location.dart';
 import 'package:geocoder/geocoder.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert' as convert;
+import 'package:charts_flutter/flutter.dart' as charts;
 
 void main() => runApp(MyApp());
 
@@ -68,7 +69,7 @@ class Observation {
   String format() {
     final now = DateTime.now();
     final diffHours = now.difference(timestamp).inHours;
-    return "$diffHours hours ago - $pressure - $description";
+    return "$diffHours hours ago - $pressure kPa - $description";
   }
 }
 
@@ -113,6 +114,31 @@ class _MyHomePageState extends State<MyHomePage> {
     ];
   }
 
+  Widget _buildChart() {
+    final seriesList = [
+      charts.Series<Observation, DateTime>(
+        id: "Pressure",
+        colorFn: (_, __) => charts.MaterialPalette.green.shadeDefault,
+        domainFn: (Observation obs, _) => obs.timestamp,
+        measureFn: (Observation obs, _) => obs.pressure.toInt(),
+        data: _observations,
+        displayName: "Pressure in kPa",
+      )
+    ];
+
+    return Padding(
+      padding: EdgeInsets.all(32.0),
+      child: SizedBox(
+        height: 200.0,
+        child: charts.TimeSeriesChart(
+          seriesList,
+          animate: false,
+          dateTimeFactory: const charts.LocalDateTimeFactory(),
+        ),
+      ),
+    );
+  }
+
   List<Widget> _buildContent(BuildContext context) {
     if (_userLocation == null) {
       return _buildProgress("Finding you...");
@@ -121,7 +147,8 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       return <Widget>[
         Text(_userLocation.cityName, style: Theme.of(context).textTheme.display1),
-        for (final obs in _observations) Text(obs.format())
+        for (final obs in _observations) Text(obs.format()),
+        _buildChart(),
       ];
     }
   }
@@ -287,7 +314,7 @@ class _MyHomePageState extends State<MyHomePage> {
         final timestamp = DateTime.parse(properties["timestamp"]);
         return Observation(
           timestamp,
-          (properties["barometricPressure"]["value"] as int).toDouble(),
+          (properties["barometricPressure"]["value"] as int).toDouble() / 1000.0,
           properties["textDescription"]
         );
       }).toList();
