@@ -64,6 +64,12 @@ class Observation {
   final String description;
 
   const Observation(this.timestamp, this.pressure, this.description);
+
+  String format() {
+    final now = DateTime.now();
+    final diffHours = now.difference(timestamp).inHours;
+    return "$diffHours hours ago - $pressure - $description";
+  }
 }
 
 class _MyHomePageState extends State<MyHomePage> {
@@ -115,7 +121,7 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       return <Widget>[
         Text(_userLocation.cityName, style: Theme.of(context).textTheme.display1),
-        Text("Stuff goes here"),
+        for (final obs in _observations) Text(obs.format())
       ];
     }
   }
@@ -286,8 +292,9 @@ class _MyHomePageState extends State<MyHomePage> {
         );
       }).toList();
 
+      // This sorts in descending date/time so that the newest observations are first.
       convertedFeatures.sort(
-        (Observation obs1, Observation obs2) => obs1.timestamp.difference(obs2.timestamp).inSeconds
+        (Observation obs1, Observation obs2) => obs2.timestamp.difference(obs1.timestamp).inSeconds
       );
 
       return convertedFeatures;
