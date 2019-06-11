@@ -53,7 +53,7 @@ final _headers = {
   a given GPS coordinate (or even a bad GPS coordinate), but for the sake of
   simplicity in this learning app, we'll just assume there's at least one.
  */
-Future<String> getStationUrl(LocationInfo location) async {
+Future<String> _getStationUrl(LocationInfo location) async {
   final response = await http.get(
     "https://api.weather.gov/points/${location.latitude}%2C${location.longitude}/stations",
     headers: _headers
@@ -87,7 +87,7 @@ Future<String> getStationUrl(LocationInfo location) async {
 
   There is a lot more there, but we're not taking it for this simple app.
  */
-Future<List<Observation>> getPressureHistoryByStationUrl(String stationUrl) async {
+Future<List<Observation>> _getPressureHistoryByStationUrl(String stationUrl) async {
   // In practice, the resolution of data we will get back is one hour. So we have to
   // request a few hours in order to get much of anything.
   final now = DateTime.now();
@@ -140,9 +140,28 @@ Future<List<Observation>> getPressureHistoryByStationUrl(String stationUrl) asyn
   }
 }
 
-// Rolls up both queries into one async function; pass the user's location info,
-// and we'll figure out which weather station to query, and query it.
-Future<List<Observation>> getPressureHistoryByCoord(LocationInfo location) async {
-  final url = await getStationUrl(location);
-  return await getPressureHistoryByStationUrl(url);
+// A generic weather data retriver that may be implemented in several ways. This
+// lets us provide a test shim for our unit tests.
+class WeatherRetriever {
+  Future<List<Observation>> getWeatherData(LocationInfo location) async => null;
+}
+
+// Handles retrieving weather data from the actual NWS site, using the
+// functions above.
+class RealWeather implements WeatherRetriever {
+  @override
+  Future<List<Observation>> getWeatherData(LocationInfo location) async {
+    final url = await _getStationUrl(location);
+    return await _getPressureHistoryByStationUrl(url);
+  }
+}
+
+// Implements a WeatherRetriever that may be used for testing.
+class FakeWeather implements WeatherRetriever {
+  final List<Observation> _fakeData;
+
+  FakeWeather(this._fakeData);
+
+  @override
+  Future<List<Observation>> getWeatherData(LocationInfo location) async => _fakeData;
 }

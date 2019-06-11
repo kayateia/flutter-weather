@@ -1,5 +1,7 @@
 import "package:flutter/material.dart";
 import "homepage.dart";
+import "location.dart";
+import "weather_data.dart";
 
 void main() => runApp(PressureApp());
 
@@ -14,7 +16,11 @@ class PressureApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: HomePage(title: _appTitle),
+      home: HomePage(
+        title: _appTitle,
+        location: RealLocation(),
+        weather: RealWeather(),
+      ),
     );
   }
 }

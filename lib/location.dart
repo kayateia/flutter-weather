@@ -14,34 +14,54 @@ class LocationInfo {
   const LocationInfo({ this.latitude, this.longitude, this.cityName });
 }
 
-final _location = Location();
+// A generic location retriever that may be implemented in several ways. This
+// lets us provide a test shim for our unit tests.
+class LocationRetriever {
+  // Returns the user's location information asynchronously, or null if it can't
+  // be determined.
+  Future<LocationInfo> getLocation() async => null;
+}
 
-// Returns the user's location information asynchronously, or null if it can't
-// be determined.
-Future<LocationInfo> getLocation() async {
-  var currentLocation = <String, double> { };
-  var cityName = "";
-  try {
-    currentLocation = await _location.getLocation();
-    final coordinates = Coordinates(currentLocation["latitude"], currentLocation["longitude"]);
+// Handles retrieving location from the actual phone OS.
+class RealLocation implements LocationRetriever {
+  final _location = Location();
 
-    // The geocoder library can also tell us geopolitical information about
-    // coordinates, such as the city name and postal code.
-    final address = await Geocoder.local.findAddressesFromCoordinates(coordinates);
-    final first = address.first;
-    cityName = "${first.locality} ${first.postalCode}";
-  } catch (e) {
-    currentLocation = null;
+  @override
+  Future<LocationInfo> getLocation() async {
+    var currentLocation = <String, double> { };
+    var cityName = "";
+    try {
+      currentLocation = await _location.getLocation();
+      final coordinates = Coordinates(currentLocation["latitude"], currentLocation["longitude"]);
+
+      // The geocoder library can also tell us geopolitical information about
+      // coordinates, such as the city name and postal code.
+      final address = await Geocoder.local.findAddressesFromCoordinates(coordinates);
+      final first = address.first;
+      cityName = "${first.locality} ${first.postalCode}";
+    } catch (e) {
+      currentLocation = null;
+    }
+
+    // If we had successful queries above, then convert to our typed data class.
+    if (currentLocation == null) {
+      return null;
+    } else {
+      return LocationInfo(
+          latitude: currentLocation["latitude"],
+          longitude: currentLocation["longitude"],
+          cityName: cityName
+      );
+    }
   }
+}
 
-  // If we had successful queries above, then convert to our typed data class.
-  if (currentLocation == null) {
-    return null;
-  } else {
-    return LocationInfo(
-        latitude: currentLocation["latitude"],
-        longitude: currentLocation["longitude"],
-        cityName: cityName
-    );
-  }
+// Implements a LocationRetriever that may be used for testing.
+class FakeLocation implements LocationRetriever {
+  final LocationInfo _fakeLocation;
+
+  FakeLocation(this._fakeLocation);
+
+  @override
+  Future<LocationInfo> getLocation() async => _fakeLocation;
 }

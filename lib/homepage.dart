@@ -7,8 +7,10 @@ import "weather_data.dart";
 // of the state information and updates based on its changes.
 class HomePage extends StatefulWidget {
   final String title;
+  final LocationRetriever location;
+  final WeatherRetriever weather;
 
-  HomePage({Key key, this.title}) : super(key: key);
+  HomePage({Key key, this.title, this.location, this.weather}) : super(key: key);
 
   @override
   HomePageState createState() => HomePageState();
@@ -26,7 +28,7 @@ class HomePageState extends State<HomePage> {
   // This method is async, which allows us to use "await" instead of a lot of
   // cascading then() calls, but we still get async operation.
   void _requestUpdate() async {
-    final location = await getLocation();
+    final location = await widget.location.getLocation();
     if (location == null) {
       // Normally, we'd want to give an error message to the user, but for the
       // purposes of this simple demo app, we'll just bail.
@@ -39,7 +41,7 @@ class HomePageState extends State<HomePage> {
       _userLocation = location;
     });
 
-    final observations = await getPressureHistoryByCoord(_userLocation);
+    final observations = await widget.weather.getWeatherData(_userLocation);
     if (observations == null) {
       // See above, re: error messages.
       return;
