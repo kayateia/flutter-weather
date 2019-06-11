@@ -14,10 +14,17 @@ class HomePage extends StatefulWidget {
   HomePageState createState() => HomePageState();
 }
 
+// This class contains the main state and logic for the HomePage widget.
 class HomePageState extends State<HomePage> {
+  // The user's location, which will be queried from the device.
   LocationInfo _userLocation;
+
+  // The list of weather observations, which will be queried from a REST service.
   List<Observation> _observations;
 
+  // Requests an update of all of our state, including location and weather data.
+  // This method is async, which allows us to use "await" instead of a lot of
+  // cascading then() calls, but we still get async operation.
   void _requestUpdate() async {
     final location = await getLocation();
     if (location == null) {
@@ -44,25 +51,41 @@ class HomePageState extends State<HomePage> {
     });
   }
 
+  // If the state is still in flux, we will show the user a wait prompt with an
+  // animating progress indicator.
   List<Widget> _buildProgress(String prompt) {
     return <Widget>[
       Text(prompt),
-      CircularProgressIndicator()
+      CircularProgressIndicator(),
     ];
   }
 
+  // To graph the received weather data, a simple chart. This just shows a line
+  // chart of pressure over time, for the requested time period.
   Widget _buildChart() {
+    // A chart series turns into a single line of data, and since we are only
+    // showing pressure, that's the only series listed.
     final seriesList = [
       charts.Series<Observation, DateTime>(
         id: "Pressure",
+
+        // We'll make the line green.
         colorFn: (_, __) => charts.MaterialPalette.green.shadeDefault,
+
+        // The X axis of the graph.
         domainFn: (Observation obs, _) => obs.timestamp,
+
+        // The Y axis of the graph.
         measureFn: (Observation obs, _) => obs.pressure.toInt(),
+
         data: _observations,
         displayName: "Pressure in kPa",
       )
     ];
 
+    // The chart will grow to fill its maximum box size, and we have no maximum
+    // box size set at this point in the tree. So the Padding and SizedBox will
+    // give some bounds to our chart.
     return Padding(
       padding: EdgeInsets.all(32.0),
       child: SizedBox(
@@ -76,6 +99,8 @@ class HomePageState extends State<HomePage> {
     );
   }
 
+  // Checks the state of our state data, and builds the appropriate widget tree
+  // to match; until we have all of the data, we'll
   List<Widget> _buildContent(BuildContext context) {
     if (_userLocation == null) {
       return _buildProgress("Finding you...");
@@ -83,8 +108,13 @@ class HomePageState extends State<HomePage> {
       return _buildProgress("Getting data...");
     } else {
       return <Widget>[
+        // The user's city and postal code in a big font.
         Text(_userLocation.cityName, style: Theme.of(context).textTheme.display1),
+
+        // Pull in all of the observations as small text lines.
         for (final obs in _observations) Text(obs.format()),
+
+        // And the chart itself.
         _buildChart(),
       ];
     }
@@ -92,18 +122,8 @@ class HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // _requestUpdate();
-
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
       body: Center(
@@ -113,22 +133,13 @@ class HomePageState extends State<HomePage> {
           // Column is also layout widget. It takes a list of children and
           // arranges them vertically. By default, it sizes itself to fit its
           // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
           mainAxisAlignment: MainAxisAlignment.center,
           children: _buildContent(context),
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        // The user can press this button to manually update. This small test
+        // app currently does not update on its own.
         onPressed: _requestUpdate,
         tooltip: "Update",
         child: Icon(Icons.update),
