@@ -13,7 +13,7 @@ not an expert by any means. But hopefully, if you're reading this, you
 can find something useful in the example code to help your own project.
 
 <p align="center">
-  <img src="https://github.com/kayateia/flutter-weather/blob/master/screenshot.png?raw=true" alt="Screen shot from Android version"/>
+  <img src="https://github.com/kayateia/flutter-weather/blob/master/screenshot.png?raw=true" width="30%" alt="Screen shot from Android version"/>
 </p>
 
 ## Caveats
