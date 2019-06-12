@@ -44,7 +44,7 @@ The code is organized into four main `lib` modules, and one `test` module.
 
 #### lib:_main.dart_
 
-The app entry point, and the top level app widget live here. This also
+The app entry point and the top level app widget live here. This also
 creates location and weather lookup objects for a real device.
 
 #### lib:_homepage.dart_
@@ -64,7 +64,7 @@ When the user taps the refresh button, `_requestUpdate()` is called,
 which kicks off an async update process using the location and weather
 data collector objects that were passed down from the app container.
 
-The final widget build pulls together a larger title text with the
+The final widget build pulls together a larger title `Text` with the
 name of the user's city and postal code, a table of observations from
 the NWS API, and a graph showing the past few hours of values.
 
@@ -76,6 +76,9 @@ map from string to value, the `RealLocation` class converts that "soft"
 data structure into something more strongly typed for the rest of the
 app to use. `FakeLocation` is also available for unit testing, and to
 let you plug in synthetic locations for app testing.
+
+The actual query logic is written asynchronously, using the `async`
+keyword.
 
 #### lib:_weather_data.dart_
 
@@ -89,13 +92,17 @@ formatting function for the tabular display in the UI.
 REST services. (As of this writing, it does not require an explicit
 API key, but they do request mentioning the client name and contact
 info in the User-Agent header; if you fork this project, please change
-the headers to have your info.) `FakeWeather` implements a mock for
-unit testing, and to let you plug in synthetic data for app testing.
+the headers to have your contact information.) `FakeWeather` implements
+a mock for unit testing, and to let you plug in synthetic data for app
+testing.
+
+The actual query logic is written asynchronously, using the `async`
+keyword.
 
 #### test:_widget\_test.dart_
 
 Contains a minimally updated version of the default Flutter test suite,
 adapted for the Weather Pressure app. A test app container widget is
-created, which passes in fake location and weather objects. A user
+created, which passes in fake location and weather query objects. A user
 tap on the refresh button is simulated, and the results are checked.
  
